@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox
 import xmlrpc.client
+import uuid
+
 
 class RPCGameClient(tk.Tk):
     def __init__(self, server_url="http://localhost:8000"):
@@ -8,8 +10,42 @@ class RPCGameClient(tk.Tk):
         self.title('Resta 1')
         self.server = xmlrpc.client.ServerProxy(server_url, allow_none=True)
         self.client_address = "client_unique_identifier"  # Exemplo de identificador
+
+        self.registered = False
+        self.register_client()
         self.setup_board()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.client_address = str(uuid.uuid4())
+
+
+        self.start_checking_for_moves()
+
+    def register_client(self):
+        try:
+            success, player_index = self.server.register_client(self.client_address)
+            if success:
+                print(f"Registrado como jogador {player_index + 1}.")
+                self.registered = True
+            else:
+                messagebox.showerror("Erro", "Não foi possível registrar no servidor. Talvez o jogo esteja cheio.")
+                self.destroy()
+        except Exception as e:
+            messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao servidor: {e}")
+            self.destroy()
+
+    def on_close(self):
+        if self.registered:
+            try:
+                self.server.deregister_client(self.client_address)
+                print("Desconectado do servidor.")
+            except Exception as e:
+                print(f"Erro ao tentar se desconectar do servidor: {e}")
+        self.destroy()
+
+    #def on_close(self):
+        # Aqui você pode adicionar qualquer lógica necessária antes de fechar a aplicação
+        # Por exemplo, notificar o servidor sobre a desconexão
+        #self.destroy()
 
     def setup_board(self):
         self.board = [
@@ -52,6 +88,8 @@ class RPCGameClient(tk.Tk):
                 end_pos = (row, col)
                 if self.is_valid_move(start_pos, end_pos):
                     self.make_move(start_pos, end_pos)
+                    if self.check_game_state():
+                        return
                     self.selected_peg = None  # Reset selected peg after a move
                 else:
                     self.selected_peg = None  # Deselect peg if move is invalid
@@ -70,7 +108,40 @@ class RPCGameClient(tk.Tk):
                 return True
         return False
 
-    def make_move(self, start_pos, end_pos):
+    def check_game_state(self):
+        peg_count = sum(row.count(1) for row in self.board)
+        if peg_count == 1:
+            print("Parabéns, você venceu!")
+            return True
+        elif not self.any_valid_moves():
+            print("Você perdeu, não há mais movimentos possíveis")
+            return True
+        return False
+
+    def any_valid_moves(self):
+        for row in range(7):
+            for col in range(7):
+                if self.board[row][col] == 1:
+                    #Checagem dos quatro movimentos possíveis das peças
+                    for drow, dcol in [(2, 0), (-2, 0), (0, 2), (0, -2)]:
+                        if self.is_valid_move((row, col), (row + drow, col + dcol)):
+                            return True
+        return False
+
+    def start_checking_for_moves(self):
+        self.check_for_new_moves()
+        self.after(1000, self.start_checking_for_moves)  # Reagenda a si mesmo a cada 1 segundo
+
+    def check_for_new_moves(self):
+        try:
+            # Chame o método correto conforme definido em server.py
+            new_moves = self.server.get_pending_moves(self.client_address)
+            for _, start_pos, end_pos in new_moves:
+                self.make_move(start_pos, end_pos, update_server=False)
+        except Exception as e:
+            print(f"Erro ao verificar novos movimentos: {e}")
+
+    def make_move(self, start_pos, end_pos, update_server=True):
         # Remove the jumped peg
         self.board[(start_pos[0] + end_pos[0]) // 2][(start_pos[1] + end_pos[1]) // 2] = 0
         # Move selected peg to new position
@@ -78,10 +149,15 @@ class RPCGameClient(tk.Tk):
         self.board[end_pos[0]][end_pos[1]] = 1
         self.draw_board()
 
-    def on_close(self):
-        # Aqui você pode adicionar qualquer lógica necessária antes de fechar a aplicação
-        # Por exemplo, notificar o servidor sobre a desconexão
-        self.destroy()
+        # Enviar detalhes do movimento para o servidor
+        if update_server:
+            # Enviar detalhes do movimento para o servidor
+            try:
+                self.server.make_move_on_server(self.client_address, start_pos, end_pos)
+            except Exception as e:
+                print(f"Erro ao enviar movimento para o servidor: {e}")
+
+
 
 if __name__ == "__main__":
     client = RPCGameClient()
