@@ -21,7 +21,6 @@ class RPCGameClient(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.client_address = str(uuid.uuid4())
 
-
         self.start_checking_for_moves()
 
     def register_client(self):
@@ -77,15 +76,20 @@ class RPCGameClient(tk.Tk):
             self.server.quit_game(self.client_address)  # Envia solicitação de desistência
             if self.clientIndex == 1:
                 messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 2 venceu.")
+                self.disable_board()
+
             else:
                 messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 1 venceu.")
-
-            self.disable_board()  # Implementar esta função para "travar" o tabuleiro
+                self.disable_board()
         except Exception as e:
             messagebox.showerror("Erro", str(e))
 
     def disable_board(self):
-        if self.server.lock_board():
+        status = self.server.lock_board()
+        if status:
+            self.lockedBoard = True
+            print("TRAVOU O BOARD")
+        else:
             self.lockedBoard = True
 
     def draw_peg(self, row, col, color='black'):
@@ -103,12 +107,10 @@ class RPCGameClient(tk.Tk):
                     self.draw_peg(row, col)
 
     def on_canvas_click(self, event):
-        if not self.lockedBoard:
-            # Aqui você pode adicionar a lógica para processar os cliques no tabuleiro
+        if self.lockedBoard == False:
             if not self.is_my_turn:
                 print("Não é sua vez!")
                 return
-            # Por exemplo, determinar a peça selecionada, validar e fazer movimentos
             col = event.x // 50
             row = event.y // 50
 
@@ -120,13 +122,14 @@ class RPCGameClient(tk.Tk):
                         self.make_move(start_pos, end_pos)
                         if self.check_game_state():
                             return
-                        self.selected_peg = None  # Reset selected peg after a move
+                        self.selected_peg = None
                     else:
-                        self.selected_peg = None  # Deselect peg if move is invalid
+                        self.selected_peg = None
                 elif self.board[row][col] == 1:
-                    self.selected_peg = (row, col)  # Select a peg
+                    self.selected_peg = (row, col)
         else:
             messagebox.showinfo("Jogo finalizado", "A partida já finalizou, reinicie o jogo para jogar novamente.")
+            return
 
     def is_valid_move(self, start_pos, end_pos):
         if (0 <= end_pos[0] < 7 and 0 <= end_pos[1] < 7 and
@@ -151,8 +154,6 @@ class RPCGameClient(tk.Tk):
         return False
 
     def notify_winner(self, winner_address):
-        # Esta função notifica o vencedor. Implementação depende do método de notificação escolhido
-        # Por exemplo, pode-se chamar uma função no cliente para mostrar uma mensagem de vitória
         pass
 
     def any_valid_moves(self):
@@ -167,11 +168,10 @@ class RPCGameClient(tk.Tk):
 
     def start_checking_for_moves(self):
         self.check_for_new_moves()
-        self.after(1000, self.start_checking_for_moves)  # Reagenda a si mesmo a cada 1 segundo
+        self.after(1000, self.start_checking_for_moves)
 
     def check_for_new_moves(self):
         try:
-            # Chame o método correto conforme definido em server.py
             new_moves = self.server.get_pending_moves(self.client_address)
             for _, start_pos, end_pos in new_moves:
                 self.make_move(start_pos, end_pos, update_server=False)
@@ -179,22 +179,17 @@ class RPCGameClient(tk.Tk):
             print(f"Erro ao verificar novos movimentos: {e}")
 
     def make_move(self, start_pos, end_pos, update_server=True):
-        # Remove the jumped peg
         self.board[(start_pos[0] + end_pos[0]) // 2][(start_pos[1] + end_pos[1]) // 2] = 0
-        # Move selected peg to new position
         self.board[start_pos[0]][start_pos[1]] = 0
         self.board[end_pos[0]][end_pos[1]] = 1
         self.draw_board()
 
         # Enviar detalhes do movimento para o servidor
         if update_server:
-            # Enviar detalhes do movimento para o servidor
             try:
                 self.server.make_move_on_server(self.client_address, start_pos, end_pos)
             except Exception as e:
                 print(f"Erro ao enviar movimento para o servidor: {e}")
-
-
 
 if __name__ == "__main__":
     client = RPCGameClient()

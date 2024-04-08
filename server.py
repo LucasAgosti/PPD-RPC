@@ -5,7 +5,7 @@ class RPCGameServer:
     def __init__(self, host="localhost", port=8000):
         self.server = SimpleXMLRPCServer((host, port), allow_none=True)
         self.moves = []
-        self.clients = []  # Esta lista irá armazenar os endereços dos clientes para comunicação bidirecional
+        self.clients = []
         self.register_functions()
         self.player1 = False
         self.player2 = False
@@ -20,13 +20,11 @@ class RPCGameServer:
         self.server.register_function(self.quit_game, "quit_game")
         self.server.register_function(self.lock_board, "lock_board")
         #self.server.register_function(self.notify_client())
-        # Adicione aqui outros métodos que deseja expor via RPC
 
     def run(self):
         print(f"Servidor iniciado em http://{self.server.server_address[0]}:{self.server.server_address[1]}/")
         self.server.serve_forever()
 
-    # Função para registrar um cliente
     def register_client(self, client_address):
         if len(self.clients) < 2:
             self.clients.append(client_address)
@@ -41,7 +39,6 @@ class RPCGameServer:
         return False, -1  # Retorna False e -1 se não puder adicionar mais clientes
 
     def deregister_client(self, client_address):
-        # Remove o cliente da lista, se ele estiver nela
         if client_address in self.clients:
             self.clients.remove(client_address)
             print(f"Cliente saiu do jogo: {client_address}")
@@ -65,9 +62,6 @@ class RPCGameServer:
 
 
     def notify_winner(self, winner_address):
-        # Esta função notifica o vencedor. Implementação depende do método de notificação escolhido
-        # Por exemplo, pode-se chamar uma função no cliente para mostrar uma mensagem de vitória
-
         if self.player1:
             print("Jogador 2 venceu")
         elif self.player2:
