@@ -2,13 +2,29 @@ import tkinter as tk
 from tkinter import messagebox
 import xmlrpc.client
 import uuid
+from tkinter import simpledialog
 
 
 class RPCGameClient(tk.Tk):
-    def __init__(self, server_url="http://localhost:8000"):
+    def __init__(self):
         super().__init__()
         self.title('Resta 1')
-        self.server = xmlrpc.client.ServerProxy(server_url, allow_none=True)
+
+        self.withdraw()
+        server_address = simpledialog.askstring("Configuração do Servidor", "Endereço do Servidor:", parent=self)
+        server_port = simpledialog.askinteger("Configuração do Servidor", "Porta do Servidor:", parent=self)
+
+        # Verifica se as informações foram fornecidas e tenta conectar ao servidor
+        if server_address and server_port:
+            server_url = f"http://{server_address}:{server_port}"
+            self.server = xmlrpc.client.ServerProxy(server_url, allow_none=True)
+            self.deiconify()  # Mostra a janela principal novamente após a configuração
+        else:
+            messagebox.showerror("Erro", "Configuração do servidor não fornecida. O programa será encerrado.")
+            self.destroy()
+            return
+
+        #self.server = xmlrpc.client.ServerProxy(server_url, allow_none=True)
         self.client_address = "client_unique_identifier"
 
         self.is_my_turn = True
@@ -95,7 +111,7 @@ class RPCGameClient(tk.Tk):
         message = self.chat_message.get()
         self.server.register_message(message, self.client_address)
         if message:
-            formatted_message = f"Jogador {self.clientIndex}: {message}\n"
+            formatted_message = f" {self.client_address[:5]}: {message}\n"
             self.chat_log.config(state='normal')
             self.chat_log.insert(tk.END, formatted_message)
             self.chat_log.config(state='disabled')
@@ -109,7 +125,7 @@ class RPCGameClient(tk.Tk):
             self.chat_log.delete('1.0', tk.END)
 
             for client_id, message in messages:
-                formatted_message = f"Jogador {self.clientIndex}: {message}\n"
+                formatted_message = f" {self.client_address[:5]}: {message}\n"
                 self.chat_log.insert(tk.END, formatted_message)
 
             self.chat_log.config(state=tk.DISABLED)
