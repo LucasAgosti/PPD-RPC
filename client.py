@@ -17,12 +17,14 @@ class RPCGameClient(tk.Tk):
         self.lockedBoard = False
         self.register_client()
         self.setup_board()
-        self.setup_ui()
+        self.setup_chat_interface()
+        self.update_chat()
+        self.setup_quit_button()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.client_address = str(uuid.uuid4())
 
         self.start_checking_for_moves()
-        self.game_over_acknowledged = False  # Novo atributo para rastrear se o fim do jogo foi reconhecido
+        self.game_over_acknowledged = False
         self.check_game_over()  # Iniciar verificação periódica
 
     def register_client(self):
@@ -65,13 +67,56 @@ class RPCGameClient(tk.Tk):
             [-1, -1, 1, 1, 1, -1, -1]
         ]
         self.canvas = tk.Canvas(self, width=400, height=400)
-        self.canvas.pack()
+        self.canvas.grid(row=0, column=0, sticky='nsew')
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        #self.canvas.pack()
         self.draw_board()
         self.canvas.bind("<Button-1>", self.on_canvas_click)
 
-    def setup_ui(self):
+    def setup_quit_button(self):
         self.quit_button = tk.Button(self, text="Desistir", command=self.quit_game)
-        self.quit_button.pack()
+        self.quit_button.grid(row=3, column=0, columnspan=4, sticky="nsew")
+        #self.quit_button.pack()
+
+    def setup_chat_interface(self):
+        self.chat_log = tk.Text(self, state='disabled', width=30, height=10)
+        self.chat_log.grid(row=0, column=1, sticky="nsew")
+
+        self.chat_message = tk.Entry(self, width=30)
+        self.chat_message.grid(row=1, column=1, sticky="ew")
+
+        send_button = tk.Button(self, text="Enviar", command=self.send_chat_message)
+        send_button.grid(row=2, column=1, sticky="ew")
+
+        self.grid_columnconfigure(1, weight=1)
+
+    def send_chat_message(self):
+        message = self.chat_message.get()
+        self.server.register_message(message, self.client_address)
+        if message:
+            formatted_message = f"Jogador {self.clientIndex}: {message}\n"
+            self.chat_log.config(state='normal')
+            self.chat_log.insert(tk.END, formatted_message)
+            self.chat_log.config(state='disabled')
+            self.chat_log.see(tk.END)
+            self.chat_message.delete(0, tk.END)
+
+    def update_chat(self):
+        try:
+            messages = self.server.get_messages()  # Chama o método RPC para pegar mensagens
+            self.chat_log.config(state=tk.NORMAL)
+            self.chat_log.delete('1.0', tk.END)
+
+            for client_id, message in messages:
+                formatted_message = f"Jogador {self.clientIndex}: {message}\n"
+                self.chat_log.insert(tk.END, formatted_message)
+
+            self.chat_log.config(state=tk.DISABLED)
+        except Exception as e:
+            print("Erro ao atualizar o chat:", e)
+        finally:
+            self.after(1000, self.update_chat)
 
     def quit_game(self):
         try:
@@ -82,7 +127,7 @@ class RPCGameClient(tk.Tk):
                 if not self.game_over_acknowledged:
                     self.disable_board()
                     self.game_over_acknowledged = True
-                #self.disable_board()  # Desabilita o tabuleiro imediatamente
+                #self.disable_board()
 
             else:
                 messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 1 venceu.")
@@ -90,7 +135,7 @@ class RPCGameClient(tk.Tk):
                 if not self.game_over_acknowledged:
                     self.disable_board()
                     self.game_over_acknowledged = True
-                #self.disable_board()  # Desabilita o tabuleiro imediatamente
+                #self.disable_board()
             #self.server.quit_game(self.client_address)
 
         except Exception as e:
@@ -100,7 +145,6 @@ class RPCGameClient(tk.Tk):
         status = self.server.lock_board()
         if status:
             self.lockedBoard = True
-            print("TRAVOU O BOARD")
         else:
             self.lockedBoard = True
 
@@ -110,7 +154,6 @@ class RPCGameClient(tk.Tk):
             messagebox.showinfo("Jogo Encerrado", "O jogo foi encerrado.")
             self.game_over_acknowledged = True  # Marcar que o fim do jogo foi reconhecido
         if not self.game_over_acknowledged:
-            # Reagendar a verificação apenas se o jogo ainda não terminou
             self.after(1000, self.check_game_over)
 
     def notify_quit(self):
@@ -135,8 +178,6 @@ class RPCGameClient(tk.Tk):
         if self.lockedBoard == False:
 
             if self.server.eh_turno_do_jogador(self.clientIndex):
-                # Lógica para fazer a jogada
-                # Após fazer a jogada, o servidor precisa mudar o turno
                 if not self.is_my_turn:
                     print("Não é sua vez!")
                     return
@@ -149,7 +190,6 @@ class RPCGameClient(tk.Tk):
                         end_pos = (row, col)
                         if self.is_valid_move(start_pos, end_pos):
                             self.make_move(start_pos, end_pos)
-                            print("aqui é pra mudar o turno")
                             self.server.mudar_turno()
                             if self.check_game_state():
                                 return

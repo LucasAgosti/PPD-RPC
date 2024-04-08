@@ -6,11 +6,11 @@ class RPCGameServer:
         self.server = SimpleXMLRPCServer((host, port), allow_none=True)
         self.moves = []
         self.clients = []
+        self.messages = []
         self.register_functions()
         self.player1 = False
         self.player2 = False
         self.lockedBoard = False
-
         self.game_over = False
 
         self.turno_atual = 1
@@ -31,6 +31,9 @@ class RPCGameServer:
         self.server.register_function(self.eh_turno_do_jogador, "eh_turno_do_jogador")
         self.server.register_function(self.mudar_turno, "mudar_turno")
 
+        self.server.register_function(self.register_message, "register_message")
+        self.server.register_function(self.get_messages, "get_messages")
+
     def run(self):
         print(f"Servidor iniciado em http://{self.server.server_address[0]}:{self.server.server_address[1]}/")
         self.server.serve_forever()
@@ -39,9 +42,14 @@ class RPCGameServer:
         self.turno_atual = 2 if self.turno_atual == 1 else 1
 
     def eh_turno_do_jogador(self, client_id):
-        # Supondo que `client_id` seja 1 ou 2 representando o jogador 1 e 2, respectivamente
         return self.turno_atual == client_id
 
+    def register_message(self, message, client_id):
+        self.messages.append((client_id, message))
+        return True  # Confirmação de que a mensagem foi registrada
+
+    def get_messages(self):
+        return self.messages
 
     def register_client(self, client_address):
         if len(self.clients) < 2:
