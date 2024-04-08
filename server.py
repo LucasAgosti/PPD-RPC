@@ -13,6 +13,8 @@ class RPCGameServer:
 
         self.game_over = False
 
+        self.turno_atual = 1
+
     def register_functions(self):
         self.server.register_function(self.register_client, "register_client")
         self.server.register_function(self.deregister_client, "deregister_client")
@@ -26,9 +28,20 @@ class RPCGameServer:
         self.server.register_function(self.end_game, "end_game")
         self.server.register_function(self.is_game_over, "is_game_over")
 
+        self.server.register_function(self.eh_turno_do_jogador, "eh_turno_do_jogador")
+        self.server.register_function(self.mudar_turno, "mudar_turno")
+
     def run(self):
         print(f"Servidor iniciado em http://{self.server.server_address[0]}:{self.server.server_address[1]}/")
         self.server.serve_forever()
+
+    def mudar_turno(self):
+        self.turno_atual = 2 if self.turno_atual == 1 else 1
+
+    def eh_turno_do_jogador(self, client_id):
+        # Supondo que `client_id` seja 1 ou 2 representando o jogador 1 e 2, respectivamente
+        return self.turno_atual == client_id
+
 
     def register_client(self, client_address):
         if len(self.clients) < 2:

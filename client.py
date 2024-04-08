@@ -133,28 +133,37 @@ class RPCGameClient(tk.Tk):
 
     def on_canvas_click(self, event):
         if self.lockedBoard == False:
-            if not self.is_my_turn:
-                print("Não é sua vez!")
-                return
-            col = event.x // 50
-            row = event.y // 50
 
-            if 0 <= row < 7 and 0 <= col < 7:
-                if hasattr(self, 'selected_peg') and self.selected_peg:
-                    start_pos = self.selected_peg
-                    end_pos = (row, col)
-                    if self.is_valid_move(start_pos, end_pos):
-                        self.make_move(start_pos, end_pos)
-                        if self.check_game_state():
-                            return
-                        self.selected_peg = None
-                    else:
-                        self.selected_peg = None
-                elif self.board[row][col] == 1:
-                    self.selected_peg = (row, col)
+            if self.server.eh_turno_do_jogador(self.clientIndex):
+                # Lógica para fazer a jogada
+                # Após fazer a jogada, o servidor precisa mudar o turno
+                if not self.is_my_turn:
+                    print("Não é sua vez!")
+                    return
+                col = event.x // 50
+                row = event.y // 50
+
+                if 0 <= row < 7 and 0 <= col < 7:
+                    if hasattr(self, 'selected_peg') and self.selected_peg:
+                        start_pos = self.selected_peg
+                        end_pos = (row, col)
+                        if self.is_valid_move(start_pos, end_pos):
+                            self.make_move(start_pos, end_pos)
+                            print("aqui é pra mudar o turno")
+                            self.server.mudar_turno()
+                            if self.check_game_state():
+                                return
+                            self.selected_peg = None
+                        else:
+                            self.selected_peg = None
+                    elif self.board[row][col] == 1:
+                        self.selected_peg = (row, col)
+            else:
+                messagebox.showinfo("Aguarde", "Não é sua vez.")
         else:
             messagebox.showinfo("Jogo finalizado", "A partida já finalizou, reinicie o jogo para jogar novamente.")
             return
+
 
     def is_valid_move(self, start_pos, end_pos):
         if (0 <= end_pos[0] < 7 and 0 <= end_pos[1] < 7 and
