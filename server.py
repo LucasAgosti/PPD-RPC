@@ -11,6 +11,8 @@ class RPCGameServer:
         self.player2 = False
         self.lockedBoard = False
 
+        self.game_over = False
+
     def register_functions(self):
         self.server.register_function(self.register_client, "register_client")
         self.server.register_function(self.deregister_client, "deregister_client")
@@ -19,7 +21,10 @@ class RPCGameServer:
 
         self.server.register_function(self.quit_game, "quit_game")
         self.server.register_function(self.lock_board, "lock_board")
-        #self.server.register_function(self.notify_client())
+        self.server.register_function(self.notify_client, "notify_client")
+
+        self.server.register_function(self.end_game, "end_game")
+        self.server.register_function(self.is_game_over, "is_game_over")
 
     def run(self):
         print(f"Servidor iniciado em http://{self.server.server_address[0]}:{self.server.server_address[1]}/")
@@ -42,8 +47,8 @@ class RPCGameServer:
         if client_address in self.clients:
             self.clients.remove(client_address)
             print(f"Cliente saiu do jogo: {client_address}")
-            return True  # Retorno para confirmar a desregisto do cliente
-        return False  # Caso o endereço do cliente não esteja na lista
+            return True
+        return False
 
     def notify_client(self, client_address):
         if client_address in self.clients:
@@ -51,15 +56,17 @@ class RPCGameServer:
             #return client_address
 
     def quit_game(self, client_address):
-        # Implementação da lógica para determinar o vencedor e notificar os clientes
-        winner_address = [addr for addr in self.clients if addr != client_address][0]
-        self.notify_winner(winner_address)
         self.lock_board()
-        return True
 
     def lock_board(self):
         self.lockedBoard = True
 
+    def end_game(self, client_id):
+        self.game_over = True
+        return True
+
+    def is_game_over(self):
+        return self.game_over
 
     def notify_winner(self, winner_address):
         if self.player1:

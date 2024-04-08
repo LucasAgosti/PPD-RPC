@@ -9,7 +9,7 @@ class RPCGameClient(tk.Tk):
         super().__init__()
         self.title('Resta 1')
         self.server = xmlrpc.client.ServerProxy(server_url, allow_none=True)
-        self.client_address = "client_unique_identifier"  # Exemplo de identificador
+        self.client_address = "client_unique_identifier"
 
         self.is_my_turn = True
         self.clientIndex = None
@@ -22,6 +22,8 @@ class RPCGameClient(tk.Tk):
         self.client_address = str(uuid.uuid4())
 
         self.start_checking_for_moves()
+        self.game_over_acknowledged = False  # Novo atributo para rastrear se o fim do jogo foi reconhecido
+        self.check_game_over()  # Iniciar verificação periódica
 
     def register_client(self):
         try:
@@ -76,11 +78,21 @@ class RPCGameClient(tk.Tk):
             self.server.quit_game(self.client_address)  # Envia solicitação de desistência
             if self.clientIndex == 1:
                 messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 2 venceu.")
-                self.disable_board()
+                self.server.end_game(self.client_address)
+                if not self.game_over_acknowledged:
+                    self.disable_board()
+                    self.game_over_acknowledged = True
+                #self.disable_board()  # Desabilita o tabuleiro imediatamente
 
             else:
                 messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 1 venceu.")
-                self.disable_board()
+                self.server.end_game(self.client_address)
+                if not self.game_over_acknowledged:
+                    self.disable_board()
+                    self.game_over_acknowledged = True
+                #self.disable_board()  # Desabilita o tabuleiro imediatamente
+            #self.server.quit_game(self.client_address)
+
         except Exception as e:
             messagebox.showerror("Erro", str(e))
 
@@ -91,6 +103,19 @@ class RPCGameClient(tk.Tk):
             print("TRAVOU O BOARD")
         else:
             self.lockedBoard = True
+
+    def check_game_over(self):
+        if not self.game_over_acknowledged and self.server.is_game_over():
+            self.disable_board()
+            messagebox.showinfo("Jogo Encerrado", "O jogo foi encerrado.")
+            self.game_over_acknowledged = True  # Marcar que o fim do jogo foi reconhecido
+        if not self.game_over_acknowledged:
+            # Reagendar a verificação apenas se o jogo ainda não terminou
+            self.after(1000, self.check_game_over)
+
+    def notify_quit(self):
+        self.disable_board()
+        messagebox.showinfo("Jogo Encerrado", "O outro jogador desistiu! O jogo foi encerrado.")
 
     def draw_peg(self, row, col, color='black'):
         x0 = col * 50 + 15
@@ -179,6 +204,7 @@ class RPCGameClient(tk.Tk):
             print(f"Erro ao verificar novos movimentos: {e}")
 
     def make_move(self, start_pos, end_pos, update_server=True):
+        #self.disable_board()
         self.board[(start_pos[0] + end_pos[0]) // 2][(start_pos[1] + end_pos[1]) // 2] = 0
         self.board[start_pos[0]][start_pos[1]] = 0
         self.board[end_pos[0]][end_pos[1]] = 1
