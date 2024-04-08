@@ -11,9 +11,13 @@ class RPCGameClient(tk.Tk):
         self.server = xmlrpc.client.ServerProxy(server_url, allow_none=True)
         self.client_address = "client_unique_identifier"  # Exemplo de identificador
 
+        self.is_my_turn = True
+        self.clientIndex = None
         self.registered = False
+        self.lockedBoard = False
         self.register_client()
         self.setup_board()
+        self.setup_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.client_address = str(uuid.uuid4())
 
@@ -26,6 +30,13 @@ class RPCGameClient(tk.Tk):
             if success:
                 print(f"Registrado como jogador {player_index + 1}.")
                 self.registered = True
+                self.clientIndex = player_index + 1
+                #if player_index == 0:
+                    #print("é o jogador 1")
+                    #self.is_my_turn = True
+                #else:
+                    #print("É o jogador 2")
+                    #self.is_my_turn = False
             else:
                 messagebox.showerror("Erro", "Não foi possível registrar no servidor. Talvez o jogo esteja cheio.")
                 self.destroy()
@@ -42,11 +53,6 @@ class RPCGameClient(tk.Tk):
                 print(f"Erro ao tentar se desconectar do servidor: {e}")
         self.destroy()
 
-    #def on_close(self):
-        # Aqui você pode adicionar qualquer lógica necessária antes de fechar a aplicação
-        # Por exemplo, notificar o servidor sobre a desconexão
-        #self.destroy()
-
     def setup_board(self):
         self.board = [
             [-1, -1, 1, 1, 1, -1, -1],
@@ -61,6 +67,26 @@ class RPCGameClient(tk.Tk):
         self.canvas.pack()
         self.draw_board()
         self.canvas.bind("<Button-1>", self.on_canvas_click)
+
+    def setup_ui(self):
+        self.quit_button = tk.Button(self, text="Desistir", command=self.quit_game)
+        self.quit_button.pack()
+
+    def quit_game(self):
+        try:
+            self.server.quit_game(self.client_address)  # Envia solicitação de desistência
+            if self.clientIndex == 1:
+                messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 2 venceu.")
+            else:
+                messagebox.showinfo("Fim de jogo", "Você desistiu. O jogador 1 venceu.")
+
+            self.disable_board()  # Implementar esta função para "travar" o tabuleiro
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
+
+    def disable_board(self):
+        if self.server.lock_board():
+            self.lockedBoard = True
 
     def draw_peg(self, row, col, color='black'):
         x0 = col * 50 + 15
@@ -77,24 +103,30 @@ class RPCGameClient(tk.Tk):
                     self.draw_peg(row, col)
 
     def on_canvas_click(self, event):
-        # Aqui você pode adicionar a lógica para processar os cliques no tabuleiro
-        # Por exemplo, determinar a peça selecionada, validar e fazer movimentos
-        col = event.x // 50
-        row = event.y // 50
+        if not self.lockedBoard:
+            # Aqui você pode adicionar a lógica para processar os cliques no tabuleiro
+            if not self.is_my_turn:
+                print("Não é sua vez!")
+                return
+            # Por exemplo, determinar a peça selecionada, validar e fazer movimentos
+            col = event.x // 50
+            row = event.y // 50
 
-        if 0 <= row < 7 and 0 <= col < 7:
-            if hasattr(self, 'selected_peg') and self.selected_peg:
-                start_pos = self.selected_peg
-                end_pos = (row, col)
-                if self.is_valid_move(start_pos, end_pos):
-                    self.make_move(start_pos, end_pos)
-                    if self.check_game_state():
-                        return
-                    self.selected_peg = None  # Reset selected peg after a move
-                else:
-                    self.selected_peg = None  # Deselect peg if move is invalid
-            elif self.board[row][col] == 1:
-                self.selected_peg = (row, col)  # Select a peg
+            if 0 <= row < 7 and 0 <= col < 7:
+                if hasattr(self, 'selected_peg') and self.selected_peg:
+                    start_pos = self.selected_peg
+                    end_pos = (row, col)
+                    if self.is_valid_move(start_pos, end_pos):
+                        self.make_move(start_pos, end_pos)
+                        if self.check_game_state():
+                            return
+                        self.selected_peg = None  # Reset selected peg after a move
+                    else:
+                        self.selected_peg = None  # Deselect peg if move is invalid
+                elif self.board[row][col] == 1:
+                    self.selected_peg = (row, col)  # Select a peg
+        else:
+            messagebox.showinfo("Jogo finalizado", "A partida já finalizou, reinicie o jogo para jogar novamente.")
 
     def is_valid_move(self, start_pos, end_pos):
         if (0 <= end_pos[0] < 7 and 0 <= end_pos[1] < 7 and
@@ -117,6 +149,11 @@ class RPCGameClient(tk.Tk):
             print("Você perdeu, não há mais movimentos possíveis")
             return True
         return False
+
+    def notify_winner(self, winner_address):
+        # Esta função notifica o vencedor. Implementação depende do método de notificação escolhido
+        # Por exemplo, pode-se chamar uma função no cliente para mostrar uma mensagem de vitória
+        pass
 
     def any_valid_moves(self):
         for row in range(7):
